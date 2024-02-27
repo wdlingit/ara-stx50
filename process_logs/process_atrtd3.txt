@@ -1,0 +1,292 @@
+
+=================== AtRTD2
+
+(download)
+ubuntu@ubuntu20:~$ wget https://ics.hutton.ac.uk/atRTD/RTD3/atRTD3_TS_21Feb22_transfix.gtf
+
+(features)
+ubuntu@ubuntu20:~$ cat atRTD3_TS_21Feb22_transfix.gtf | perl -ne 'chomp; @t=split(/\t/); $hash{$t[2]}++; if(eof){ for $k (sort keys %hash){ print "$k\t$hash{$k}\n" } }'
+CDS     798443
+exon    1198615
+five_prime_utr  210142
+start_codon     165469
+stop_codon      165469
+three_prime_utr 500356
+
+(attributes)
+ubuntu@ubuntu20:~$ cat atRTD3_TS_21Feb22_transfix.gtf | perl -ne 'chomp; @t=split(/\t/); @s=split(/\s+/,$t[8]); for $x (@s){ $hash{$x}++ if $x!~/^"/ } if(eof){ for $k (sort keys %hash){ print "$k\t$hash{$k}\n" } }'
+exon_number     3038494
+gene_id 3038494
+transcript_id   3038494
+uniq_trans_id   3038494
+
+(chromosome)
+ubuntu@ubuntu20:~$ cat atRTD3_TS_21Feb22_transfix.gtf | perl -ne '@t=split(/\t/); $hash{$t[0]}++; if(eof){ for $k (sort keys %hash){ print "$k\t$hash{$k}\n" } }'
+Chr1    814513
+Chr2    457937
+Chr3    588479
+Chr4    468734
+Chr5    706452
+ChrC    1522
+ChrM    857
+
+(GTF to GFF3)
+ubuntu@ubuntu20:~$ cat atRTD3_TS_21Feb22_transfix.gtf | perl -ne 'chomp; @t=split(/\t/); ($geneID)=$t[8]=~/gene_id "(.+?)"/; ($transID)=$t[8]=~/uniq_trans_id "(.+?)"/; push @{$additive{$geneID}},$t[3],$t[4]; push @{$additive{$transID}},$t[3],$t[4]; $parent{$transID}=$geneID; @{$info{$geneID}}=($t[0],$t[6],"gene"); @{$info{$transID}}=($t[0],$t[6],"transcript"); print join("\t",@t[0..7])."\tParent=$transID\n"; if(eof){ for $k (sort keys %additive){ @p=sort {$a<=>$b} @{$additive{$k}}; print "$info{$k}[0]\tPBRI\t$info{$k}[2]\t$p[0]\t$p[-1]\t.\t$info{$k}[1]\t.\t"; print "ID=$k"; print ";Parent=$parent{$k}" if exists $parent{$k}; print "\n" } }' > atRTD3_TS_21Feb22_transfix.gff
+
+(GFF3 check)
+ubuntu@ubuntu20:~$ java -classpath /home/ubuntu/Tools/rackJ/rackj.jar misc.GffTree -I atRTD3_TS_21Feb22_transfix.gff
+ID attribute (-idAttr) not assigned, using default: ID
+parent attribute list (-parentAttr) not assigned, using default: [Parent, Derives_from]
+program: GffTree
+input GFF file (-I): atRTD3_TS_21Feb22_transfix.gff
+ID attribute (-idAttr): ID
+parent attribute list (-parentAttr): [Parent, Derives_from]
+
+ubuntu@ubuntu20:~$ cat atRTD3_TS_21Feb22_transfix.gff.features
+GffRoot
+  gene*
+    transcript*
+      stop_codon
+      exon
+      three_prime_utr
+      CDS
+      five_prime_utr
+      start_codon
+
+ubuntu@ubuntu20:~$ cat atRTD3_TS_21Feb22_transfix.gff | GFF3checker.pl -feature transcript -expanding exon | head -10
+ubuntu@ubuntu20:~$ cat atRTD3_TS_21Feb22_transfix.gff | GFF3checker.pl -feature gene -expanding exon | head -10
+
+(CGFF / model)
+ubuntu@ubuntu20:~$ java -classpath /home/ubuntu/Tools/rackJ/rackj.jar misc.ModelCGFF -GFF3 atRTD3_TS_21Feb22_transfix.gff -GRE gene transcript exon -O AtRTD3 -IP true
+ID attribute (-idAttr) not assigned, using default: ID
+parent attribute list (-parentAttr) not assigned, using default: [Parent, Derives_from]
+program: ModelCGFF
+GFF3 filename (-GFF3): atRTD3_TS_21Feb22_transfix.gff
+ID attribute (-idAttr): ID
+parent attribute list (-parentAttr)): [Parent, Derives_from]
+gene-rna-exon feature triples (-GRE): [[gene, transcript, exon]]
+intron preserving merged model (-IP)): true
+representative list (-rep): null
+output prefix (-O): AtRTD3
+
+(remove chimeric)
+ubuntu@ubuntu20:~$ cat AtRTD3.cgff | perl -ne 'print "$1\n" if /^>(\S+\-\S+)/' > AtRTD3.chimeric.list
+
+ubuntu@ubuntu20:~$ cat atRTD3_TS_21Feb22_transfix.gff | GFF3checker.pl -remove AtRTD3.chimeric.list > atRTD3_TS_21Feb22_transfix.noChimeric.gff
+
+ubuntu@ubuntu20:~$ java -classpath /home/ubuntu/Tools/rackJ/rackj.jar misc.ModelCGFF -GFF3 atRTD3_TS_21Feb22_transfix.noChimeric.gff -GRE gene transcript exon -O AtRTD3.noChimeric -IP true
+ID attribute (-idAttr) not assigned, using default: ID
+parent attribute list (-parentAttr) not assigned, using default: [Parent, Derives_from]
+program: ModelCGFF
+GFF3 filename (-GFF3): atRTD3_TS_21Feb22_transfix.noChimeric.gff
+ID attribute (-idAttr): ID
+parent attribute list (-parentAttr)): [Parent, Derives_from]
+gene-rna-exon feature triples (-GRE): [[gene, transcript, exon]]
+intron preserving merged model (-IP)): true
+representative list (-rep): null
+output prefix (-O): AtRTD3.noChimeric
+
+=================== Araport11
+
+(GFF3 check)
+ubuntu@ubuntu20:~$ java -classpath /home/ubuntu/Tools/rackJ/rackj.jar misc.GffTree -I Araport11_GFF3_genes_transposons.201606.gff
+ID attribute (-idAttr) not assigned, using default: ID
+parent attribute list (-parentAttr) not assigned, using default: [Parent, Derives_from]
+program: GffTree
+input GFF file (-I): Araport11_GFF3_genes_transposons.201606.gff
+ID attribute (-idAttr): ID
+parent attribute list (-parentAttr): [Parent, Derives_from]
+
+ubuntu@ubuntu20:~$ cat Araport11_GFF3_genes_transposons.201606.gff.features
+GffRoot
+  gene*
+    mRNA*
+      five_prime_UTR*
+      exon*
+      CDS*
+      three_prime_UTR*
+      protein*
+    lnc_RNA*
+      exon*
+    antisense_lncRNA*
+      exon*
+    miRNA_primary_transcript*
+      miRNA*
+    transcript_region*
+      exon*
+    tRNA*
+      exon*
+    antisense_RNA*
+      exon*
+    snoRNA*
+      exon*
+    ncRNA*
+      exon*
+    snRNA*
+      exon*
+    uORF*
+    rRNA*
+      exon*
+  transposable_element*
+    transposon_fragment*
+  pseudogene*
+    pseudogenic_transcript*
+      pseudogenic_exon*
+    pseudogenic_tRNA*
+      pseudogenic_exon*
+  transposable_element_gene*
+    mRNA*
+      exon*
+
+(CGFF / model)
+ubuntu@ubuntu20:~$ java -classpath /home/ubuntu/Tools/rackJ/rackj.jar misc.ModelCGFF -GFF3 Araport11_GFF3_genes_transposons.201606.gff -O Araport11 -IP true -GRE gene mRNA:tRNA:antisense_lncRNA:snoRNA:lnc_RNA:antisense_RNA:transcript_region:snRNA:ncRNA:rRNA five_prime_UTR:exon:CDS:three_prime_UTR -GRE gene miRNA_primary_transcript miRNA_primary_transcript -GRE pseudogene pseudogenic_transcript:pseudogenic_tRNA pseudogenic_exon -GRE transposable_element_gene mRNA exon
+ID attribute (-idAttr) not assigned, using default: ID
+parent attribute list (-parentAttr) not assigned, using default: [Parent, Derives_from]
+program: ModelCGFF
+GFF3 filename (-GFF3): Araport11_GFF3_genes_transposons.201606.gff
+ID attribute (-idAttr): ID
+parent attribute list (-parentAttr)): [Parent, Derives_from]
+gene-rna-exon feature triples (-GRE): [[gene, mRNA:tRNA:antisense_lncRNA:snoRNA:lnc_RNA:antisense_RNA:transcript_region:snRNA:ncRNA:rRNA, five_prime_UTR:exon:CDS:three_prime_UTR], [gene, miRNA_primary_transcript, miRNA_primary_transcript], [pseudogene, pseudogenic_transcript:pseudogenic_tRNA, pseudogenic_exon], [transposable_element_gene, mRNA, exon]]
+intron preserving merged model (-IP)): true
+representative list (-rep): null
+output prefix (-O): Araport11
+
+=================== Araport11 vs AtRTD2
+
+(numbers of gene IDs)
+ubuntu@ubuntu20:~$ grep ">" AtRTD3.noChimeric.cgff | wc -l
+39732
+ubuntu@ubuntu20:~$ grep ">" Araport11.cgff | wc -l
+38194
+
+(number of transcripts)
+ubuntu@ubuntu20:~$ grep ">" AtRTD3.noChimeric.model | wc -l
+165704
+ubuntu@ubuntu20:~$ grep ">" Araport11.model | wc -l
+59777
+
+(features)
+ubuntu@ubuntu20:~$ cat second.features
+mRNA
+miRNA_primary_transcript
+tRNA
+antisense_lncRNA
+snoRNA
+lnc_RNA
+antisense_RNA
+transcript_region
+snRNA
+ncRNA
+rRNA
+pseudogenic_transcript
+pseudogenic_tRNA
+
+ubuntu@ubuntu20:~$ cat Araport11_GFF3_genes_transposons.201606.gff | perl -ne 'if($.==1){ open(FILE,"<second.features"); while($line=<FILE>){ chomp $line; $hash{$line}=1 } close FILE; } chomp; @t=split(/\t/); if(exists $hash{$t[2]}){ $t[8].=";"; $t[8]=~/Parent=(.+?);/ || $t[8]=~/Derives_from=(.+?);/; $feature{$1}{$t[2]}=1 } if($t[2] eq "transposable_element_gene"){ $t[8].=";"; $t[8]=~/ID=(.+?);/; $teHash{$1}=1 } if(eof){ for $k (sort keys %feature){ @features=keys %{$feature{$k}}; if(exists $teHash{$k}){ print "$k\ttransposable_element_gene\n" }else{ print "$k\t@features\n" } } }' > Araport11.gene.features
+
+ubuntu@ubuntu20:~$ cat atRTD3_TS_21Feb22_transfix.noChimeric.gff | perl -ne 'if($.==1){ open(FILE,"<Araport11.gene.features"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $type{$s[0]}=$s[1]; } close FILE } chomp; @t=split(/\t/); if($t[2] eq "gene"){ $t[8].=";"; ($id)=$t[8]=~/ID=(.+?);/; print "$id\t$type{$id}\n" }' | sort > AtRTD3.gene.features
+
+(diff)
+ubuntu@ubuntu20:~$ diff Araport11.gene.features AtRTD3.gene.features | perl -ne 'chomp; @t=split; if($t[0] eq "<"){ $hash{$t[2]}++ } if(eof){ for $k (sort keys %hash){ print "$k\t$hash{$k}\n" } }'
+miRNA_primary_transcript        3
+
+ubuntu@ubuntu20:~$ diff Araport11.gene.features AtRTD3.gene.features | perl -ne 'chomp; @t=split; print "$_\n" if ($t[0] eq "<") && ($t[2] eq "mRNA")' > Araport11Only.codingGenes.txt
+
+ubuntu@ubuntu20:~$ diff Araport11.gene.features AtRTD3.gene.features | perl -ne 'chomp; @t=split; print "$_\n" if ($t[0] eq ">") && ($t[2] eq "")' > AtRTD3Only.genes.txt
+
+ubuntu@ubuntu20:~$ wc -l Araport11Only.codingGenes.txt AtRTD3Only.genes.txt
+    0 Araport11Only.codingGenes.txt
+ 1541 AtRTD3Only.genes.txt
+ 1541 total
+
+ubuntu@ubuntu20:~$ cat AtRTD3.cgff | perl -ne 'print if /^>G/' | wc -l
+1541
+
+ubuntu@ubuntu20:~$ ./CovCheck.pl Araport11.cgff AtRTD3.noChimeric.cgff /home/ubuntu/Tools/rackJ/rackj.jar | head
+AT1G48267
+AT2G08855
+AT5G39693
+
+=================== Araport11 + AtRTD3
+
+(AtRTD3 + 3 miRNA from Araport11)
+ubuntu@ubuntu20:~$ diff AtRTD3.noChimeric.model AtRTD3.noChimericPlus3.model
+1335767a1335768,1335773
+> >AT1G48267.1  Chr1    17825685        17825857        +       AT1G48267
+> 17825685      17825857
+> >AT2G08855.1  Chr2    15611870        15611982        +       AT2G08855
+> 15611870      15611982
+> >AT5G39693.1  Chr5    15891579        15891873        -       AT5G39693
+> 15891579      15891873
+
+ubuntu@ubuntu20:~$ cat AtRTD3.noChimericPlus3.model  | perl -ne 'chomp; if(/^>(\S+)/){ @t=split; print "$1\t$t[5]\n" }' | perl -ne '$hash{$_}=1; if(eof){ for $k (sort keys %hash){ print $k} }' > rnaGene.txt
+
+(fake GFF3 for Araport11 + AtRTD2)
+ubuntu@ubuntu20:~$ cat AtRTD3.noChimericPlus3.model | model2GFF3.pl /dev/stdin rnaGene.txt > Araport11-AtRTD3.fake.gff3
+
+(check)
+ubuntu@ubuntu20:~$ java -classpath /home/ubuntu/Tools/rackJ/rackj.jar misc.GffTree -I Araport11-AtRTD3.fake.gff3
+ID attribute (-idAttr) not assigned, using default: ID
+parent attribute list (-parentAttr) not assigned, using default: [Parent, Derives_from]
+program: GffTree
+input GFF file (-I): Araport11-AtRTD3.fake.gff3
+ID attribute (-idAttr): ID
+parent attribute list (-parentAttr): [Parent, Derives_from]
+
+ubuntu@ubuntu20:~$ cat Araport11-AtRTD3.fake.gff3.features
+GffRoot
+  gene*
+    transcript*
+      exon
+
+=================== Redundancy check
+
+ubuntu@ubuntu20:~$ cat Araport11_GFF3_genes_transposons.201606.gff | GFF3checker.pl -feature gene -feature pseudogene -feature transposable_element_gene > Araport11.redundancy
+
+ubuntu@ubuntu20:~$ cat Araport11-AtRTD3.fake.gff3 | GFF3checker.pl > merged.redundancy
+
+=================== GFF3 features restored
+
+(restore features, mimic TAIR10)
+ubuntu@ubuntu20:~$ cat Araport11-AtRTD3.fake.gff3 | perl -ne 'if($.==1){ open(FILE,"<Araport11.gene.features"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $hash{$s[0]}=$s[1] } close FILE } chomp; @t=split(/\t/); $t[8].=";" if not $t[8]=~/;$/; $t[8]=~/Parent=(.+?);/; if(exists $hash{$1}){ $t[2]=$hash{$1} } print join("\t",@t)."\n"' > Araport11-AtRTD3.restored.gff3
+
+ubuntu@ubuntu20:~$ java -classpath /home/ubuntu/Tools/rackJ/rackj.jar misc.GffTree -I Araport11-AtRTD3.restored.gff3
+ID attribute (-idAttr) not assigned, using default: ID
+parent attribute list (-parentAttr) not assigned, using default: [Parent, Derives_from]
+program: GffTree
+input GFF file (-I): Araport11-AtRTD3.restored.gff3
+ID attribute (-idAttr): ID
+parent attribute list (-parentAttr): [Parent, Derives_from]
+
+ubuntu@ubuntu20:~$ cat Araport11-AtRTD3.restored.gff3.features
+GffRoot
+  gene*
+    mRNA*
+      exon
+    miRNA_primary_transcript*
+      exon
+    tRNA*
+      exon
+    antisense_lncRNA*
+      exon
+    pseudogenic_transcript*
+      exon
+    transposable_element_gene*
+      exon
+    snoRNA*
+      exon
+    lnc_RNA*
+      exon
+    antisense_RNA*
+      exon
+    transcript_region*
+      exon
+    snRNA*
+      exon
+    ncRNA*
+      exon
+    pseudogenic_tRNA*
+      exon
+    rRNA*
+      exon
+    transcript*
+      exon

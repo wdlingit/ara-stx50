@@ -1,0 +1,436 @@
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/DB$ java -classpath /home/wdlin/Project1/rackJ/rackj.jar misc.GffTree -I Araport11-AtRTD3.fake.gff3
+ID attribute (-idAttr) not assigned, using default: ID
+parent attribute list (-parentAttr) not assigned, using default: [Parent, Derives_from]
+program: GffTree
+input GFF file (-I): Araport11-AtRTD3.fake.gff3
+ID attribute (-idAttr): ID
+parent attribute list (-parentAttr): [Parent, Derives_from]
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/DB$ java -classpath /home/wdlin/Project1/rackJ/rackj.jar misc.GffTree -I Araport11-AtRTD3.restored.gff3
+ID attribute (-idAttr) not assigned, using default: ID
+parent attribute list (-parentAttr) not assigned, using default: [Parent, Derives_from]
+program: GffTree
+input GFF file (-I): Araport11-AtRTD3.restored.gff3
+ID attribute (-idAttr): ID
+parent attribute list (-parentAttr): [Parent, Derives_from]
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/DB$ cat Araport11-AtRTD3.fake.gff3.features
+GffRoot
+  gene*
+    transcript*
+      exon
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/DB$ java -classpath /home/wdlin/Project1/rackJ/rackj.jar misc.ModelCGFF -GFF3 Araport11-AtRTD3.fake.gff3 -GRE gene transcript exon -O AtRTD3
+ID attribute (-idAttr) not assigned, using default: ID
+parent attribute list (-parentAttr) not assigned, using default: [Parent, Derives_from]
+program: ModelCGFF
+GFF3 filename (-GFF3): Araport11-AtRTD3.fake.gff3
+ID attribute (-idAttr): ID
+parent attribute list (-parentAttr)): [Parent, Derives_from]
+gene-rna-exon feature triples (-GRE): [[gene, transcript, exon]]
+intron preserving merged model (-IP)): false
+representative list (-rep): null
+output prefix (-O): AtRTD3
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/DB$ cp /nas/Projects/DataSource/A.Thaliana/TAIR10/TAIR10_chr_all.fas .
+
+wdlin@node33:/RAID3/Projects/20230323_Matzke/DB$ SeqGen.pl AtRTD3.model.fasta TAIR10_chr_all.fas AtRTD3.model
+
+(intron-preserving cgff for IR computation)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/DB$ java -classpath /home/wdlin/Project1/rackJ/rackj.jar misc.ModelCGFF -GFF3 Araport11-AtRTD3.fake.gff3 -GRE gene transcript exon -O AtRTD3_IP -IP true
+ID attribute (-idAttr) not assigned, using default: ID
+parent attribute list (-parentAttr) not assigned, using default: [Parent, Derives_from]
+program: ModelCGFF
+GFF3 filename (-GFF3): Araport11-AtRTD3.fake.gff3
+ID attribute (-idAttr): ID
+parent attribute list (-parentAttr)): [Parent, Derives_from]
+gene-rna-exon feature triples (-GRE): [[gene, transcript, exon]]
+intron preserving merged model (-IP)): true
+representative list (-rep): null
+output prefix (-O): AtRTD3_IP
+
+wdlin@node33:/RAID3/Projects/20230323_Matzke/DB$ cgff2PSL.pl AtRTD3_IP.cgff | psl2sam.pl TAIR10_chr_all.fas /dev/stdin | samtools view -Sbo /dev/stdout -T TAIR10_chr_all.fas /dev/stdin | samtools sort /dev/stdin AtRTD3_IP
+
+wdlin@node33:/RAID3/Projects/20230323_Matzke/DB$ samtools index AtRTD3_IP.bam
+
+=================== AtRTD3 redundency removal
+
+wdlin@node33:/RAID3/Projects/20230323_Matzke/DB$ preindex.pl AtRTD3.model.fasta
+
+wdlin@node33:/RAID3/Projects/20230323_Matzke/DB$ Mapping.pl -split 20 x AtRTD3.model.fasta AtRTD3.self.bam MappingBlat.pl -target AtRTD3.model.fasta -q=dna -t=dna
+
+(find sequences contained by other sequences from the same loci)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/DB$ java -classpath /home/wdlin/Project1/rackJ/rackj.jar:/home/wdlin/Tools/sam-1.89.jar misc.AlignmentFilter2 -M SAM AtRTD3.self.bam -O /dev/stdout -quiet true -filter top true | perl -ne 'if($.==1){ open(FILE,"<AtRTD3.rnaGene"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $hash{$s[0]}=$s[1] } close FILE } @t=split; if(/XM:i:(\d+)/){ $xm=$1 }else{ $xm=0 } next if $hash{$t[0]} ne $hash{$t[2]}; next if $t[0] eq $t[2]; if($t[5]=~/^\d+M$/ && $xm==0){ print "$t[0]\t$t[2]\n" }' | perl -ne 'chomp; @t=split; $contained{$t[0]}{$t[1]}=1; if(eof){ for $k1 (sort keys %contained){ for $k2 (sort keys %{$contained{$k1}}){ if(exists $contained{$k2}{$k1}){ print "$k1 = $k2\n" if ($k1 cmp $k2)<0 }else{ print "$k1 < $k2\n" } } } }' > AtRTD3.transcript.redundancy
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/DB$ cat AtRTD3.transcript.redundancy | perl -ne 'chomp; @t=split; $hash{$t[0]}=1; if(eof){ for $k (sort keys %hash){ print "$k\n" } }' > AtRTD3.transcript.redundantList
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/DB$ wc -l AtRTD3.transcript.redundancy AtRTD3.transcript.redundantList
+ 19979 AtRTD3.transcript.redundancy
+ 14270 AtRTD3.transcript.redundantList
+ 34249 total
+
+(redundancy removal)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/DB$ SplitSelector.pl --reverse 1 LIST AtRTD3.transcript.redundantList FASTA AtRTD3.model.fasta AtRTD3.modelNR.fasta
+list size = 14270
+selected size = 151437
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/DB$ grep ">" AtRTD3.modelNR.fasta | wc -l
+151437
+
+wdlin@node33:/RAID3/Projects/20230323_Matzke/DB$ preindex.pl AtRTD3.modelNR.fasta
+wdlin@node33:/RAID3/Projects/20230323_Matzke/DB$ bowtie2-build AtRTD3.modelNR.fasta AtRTD3.transcriptomeNR
+
+(maximum transcript length)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ cat DB/AtRTD3.modelNR.fasta | perl -ne 'chomp; if(/^>(\S+)/){ $id=$1 }else{ $hash{$id}+=length; $max=$hash{$id} if $hash{$id}>$max } print "$max\n" if eof'
+16593
+
+(minimum exon size)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ cat DB/AtRTD3.model | perl -ne 'chomp; if(/^>(\S+)/){ $id=$1 }else{ @t=split; $len=$t[1]-$t[0]+1; if((not defined $min) || $len<$min){ $min=$len; print "$id\t$min\n" } }'
+AT1G01010.1     297
+AT1G01010.1     281
+AT1G01010.1     153
+AT1G01010.2     120
+AT1G01010.3     100
+AT1G01020.11    76
+AT1G01020.11    67
+AT1G01020.11    48
+AT1G01020.13    46
+AT1G01046.1     21
+AT1G01620.10    8
+AT1G02705.3     6
+G910.1  4
+AT1G18382.4     1
+
+=================== AtRTD3 redundency removal, END
+
+(link previous trimmed files)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls /RAID3/Projects/20191226_Matzke/trimmo/*.gz | perl -ne 'if($.==1){ open(FILE,"<sampleList.txt"); while($line=<FILE>){ chomp $line; $hash{$line}=1 } close FILE } chomp; /.+\/(.+)_R\d_/; if(exists $hash{$1}){ /.+\/(.+)/; $cmd="ln -s $_ trimmo/$1"; print "$cmd\n"; system $cmd }'
+
+(mapping to transcripts)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls trimmo/*.fastq.gz | perl -ne 'chomp; /.+\/(.+)\.fastq\.gz/; $cmd="gzip -dc $_ > $1.fastq; Mapping.pl x $1.fastq $1.model.bam MappingBowtie.pl -target DB/AtRTD3.transcriptomeNR -p 20 -k 30 --gbar 151 --sensitive -ID 0.95 -SamTmp $1.model.unmapped.sam; rm $1.fastq"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=20"; print "PBS: $pbsCMD\n"; system $pbsCMD'
+
+(strand specific info)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *_paired.model.bam | perl -ne 'chomp; print "FILE: $_\n"; system "samtools view $_ | sam_filter.pl -ID 1.1 /dev/null /dev/stdout | head -10000"' | perl -ne 'chomp; if(/^FILE: (.+?_R\d_)/){ $file=$1 }else{ @t=split; $strand="+"; $strand="-" if ($t[1]&16); $hash{$file}{$strand}++ } if(eof){ for $k (sort keys %hash){ print "$k"; for $strand ("+","-"){ if(exists $hash{$k}{$strand}){ print "\t$hash{$k}{$strand}" }else{ print "\t0" } } print "\n"; } }' | perl -ne 'chomp; @t=split; $t[0]=~/_(R\d)_$/; if($t[1]/($t[1]+$t[2]) > 0.95){ $tag="+" }elsif($t[2]/($t[1]+$t[2]) > 0.95){ $tag="-" }else{ $tag="?" } print "$1\t$tag\n"' | perl -ne 'chomp; $hash{$_}++; if(eof){ for $k (sort keys %hash){ print "$k\t$hash{$k}\n" } }'
+R1      -       50
+R2      +       50
+
+(merge & mate-pair filter)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.model.bam | perl -ne 'chomp; /(.+)_R\d[\_|\.]/; push @{$hash{$1}},$_; if(eof){ for $key (sort keys %hash){ $cmd="samtools merge -fn /dev/stdout @{$hash{$key}} | java -classpath /home/bictools/Tools/rackJ/rackj.jar:/home/bictools/Tools/sam-1.89.jar misc.AlignmentFilter2 -M SAM /dev/stdin -quiet true -mate _ -O /dev/stdout -Un $key.model.filtered.sam -filter ExactEnds 4 -filter PairInDistance -max 16593 -top true -filter PairDistStat $key.dist -filter translation DB/AtRTD3.model | psl2sam.pl DB/TAIR10_chr_all.fas /dev/stdin | samtools view -Sbo $key.model.pass.bam -T DB/TAIR10_chr_all.fas /dev/stdin"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=5"; print "PBS: $pbsCMD\n"; system $pbsCMD } }'
+
+(fitler ExactEnds 4, translation, not done because pair end reads)
+wdlin@head2:/RAID3/Projects/20171020_Yu$ ls *.model.bam | perl -ne 'chomp; /(.+?)\./; $cmd="java -classpath /home/wdlin/Project1/rackJ/rackj.jar:/home/wdlin/Tools/sam-1.89.jar misc.AlignmentFilter2 -M SAM $_ -quiet true -O /dev/stdout -Un $1.model.filtered.sam -filter ExactEnds 4 -filter translation DB/tair10.strand.model | psl2sam.pl DB/TAIR10_chr_all.fas /dev/stdin | samtools view -Sbo $1.model.pass.bam -T DB/TAIR10_chr_all.fas /dev/stdin"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"cd $pwd; $cmd\" | qsub -l ncpus=3"; print "PBS: $pbsCMD\n"; system $pbsCMD'
+
+(collect unmapped & filtered reads)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.model.*.sam | perl -ne 'chomp; /(.+?)_R\d\_/ || /(.+?)\./; $key=$1; push @{$hash{$key}},$_; if(eof){ for $key (sort keys %hash){ $cmd="cat @{$hash{$key}} | sam2fas.pl /dev/stdin $key.model.tmp.fasta"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=3"; print "PBS: $pbsCMD\n"; system $pbsCMD } }'
+
+(mapping to genome)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.model.tmp.fasta | sort | perl -ne 'chomp; push @arr,$_; if(eof){ for($i=0;$i<@arr;$i+=@arr){ for($j=0;$j<@arr;$j++){ $idx=$i+$j; $arr[$idx]=~/(.+?)\./; $cmd="Mapping.pl -split 20 x $arr[$idx] $1.blat.bam MappingBlat.pl -target DB/TAIR10_chr_all.fas -q=rna -t=dna -unmap"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd >> log/$1.log\" | qsub -d $pwd -l ncpus=20"; print "PBS: $pbsCMD\n"; system $pbsCMD; } system "qMonitor.pl" } }'
+
+(filter, ID95j2mb8)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.blat.bam | perl -ne 'chomp; /(.+?)\./; $cmd="java -classpath /home/bictools/Tools/rackJ/rackj.jar:/home/bictools/Tools/sam-1.89.jar misc.AlignmentFilter2 -M SAMun $_ -O /dev/stdout -Un $1.blat.tmp.sam -quiet true -filter ID 0.95 -filter J 2 -filter minB 8 -endBlock true | samtools view -Sbo $1.blat.pass.bam -T DB/TAIR10_chr_all.fas /dev/stdin"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=3"; print "PBS: $pbsCMD\n"; system $pbsCMD'
+
+(collect filtered reads)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.blat.tmp.sam | perl -ne 'chomp; /(.+?)\./; $cmd="sam2fas.pl $_ $1.blat.tmp.fasta"; print "\nCMD: $cmd\n"; system $cmd'
+
+(mapping to GFP, read1 reversed)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ cp -R /RAID3/Projects/20191226_Matzke/GFP/ .
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.blat.tmp.fasta | perl -ne 'chomp; /(.+?)\./; $cmd="Mapping.pl -split 10 x $_ $1.target0.bam MappingBlat.pl -target GFP/Target.fixed.fasta -q=rna -t=dna -ID 0.9"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=10"; print "PBS: $pbsCMD\n"; system $pbsCMD'
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.target0.bam | perl -ne 'chomp; /(.+?)\./; $cmd="samtools view $_ | SamReverse.pl _1 | samtools view -Sbo $1.target.bam -T GFP/Target.fixed.fasta /dev/stdin"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=3"; print "PBS: $pbsCMD\n"; system $pbsCMD'
+
+(for read counts)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.pass.bam *.target.bam | perl -ne 'print if /2015/ || /2016/' | perl -ne 'chomp; /(.+?)\.(.+?)\./; print "FILE: $1 $2\n"; system "samtools view $_"' | perl -ne 'chomp; if(/^FILE:\s(\S+)\s(\S+)/){ $file=$1; $tag=$2; $files{$file}=1; $tags{$tag}=1; }else{ @t=split; $cnt{$file}{$tag}++ if $t[0] ne $last; $last=$t[0] } if(eof){ for $t (sort keys %tags){ print "\t$t" } print "\n"; for $f (sort keys %files){ print "$f"; for $t (sort keys %tags){ if(exists $cnt{$f}{$t}){ print "\t$cnt{$f}{$t}" }else{ print "\t0" } } print "\n" } }'
+        blat    model   target
+st20150706_R19  14314485        65168578        473082
+st20150925_2-2_t1       8378543 41429366        279244
+st20150925_2-2_t2       8363666 42652586        281085
+st20150925_2-2_t3       7963176 40093856        274749
+st20160106_R33_3_t1     8198830 35075306        488044
+st20160106_R33_3_t2     7974724 31076834        448037
+st20160106_R34_1_t1     7278666 34173664        327276
+st20160106_R34_1_t2     7695173 36817718        340669
+st20160630_R48_1        11704825        49410878        534311
+st20160630_R48_2        10712729        45805118        490842
+st20160929_R55_A2       8809608 41101418        352559
+st20160929_R55_B        7161898 33014408        339415
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.pass.bam *.target.bam | perl -ne 'print if /2017/ || /2018/' | perl -ne 'chomp; /(.+?)\.(.+?)\./; print "FILE: $1 $2\n"; system "samtools view $_"' | perl -ne 'chomp; if(/^FILE:\s(\S+)\s(\S+)/){ $file=$1; $tag=$2; $files{$file}=1; $tags{$tag}=1; }else{ @t=split; $cnt{$file}{$tag}++ if $t[0] ne $last; $last=$t[0] } if(eof){ for $t (sort keys %tags){ print "\t$t" } print "\n"; for $f (sort keys %files){ print "$f"; for $t (sort keys %tags){ if(exists $cnt{$f}{$t}){ print "\t$cnt{$f}{$t}" }else{ print "\t0" } } print "\n" } }'
+        blat    model   target
+st20170123_R62_A        9719045 50699204        357244
+st20170123_R62_B        9780676 49604982        455814
+st20170123_R62_C        11893695        60828044        433864
+st20170526_R65_H        11218175        52131244        360709
+st20170526_R65_I        10570982        51928210        379410
+st20170526_R65_J        11487912        56236836        425496
+st20170811_R75_Q        9712312 54471238        387884
+st20170811_R75_R        9869515 54864246        273089
+st20170811_R75_S        9388957 51046450        258018
+st20170925_R78_T        8755352 65201432        504366
+st20170925_R78_U        8323234 62155964        499368
+st20170925_R78_V        8585126 67743136        695992
+st20180306_R96_2        32582664        140144544       814721
+st20180613_R109_W       13160697        64110306        446853
+st20180613_R109_X       11727357        52390370        290018
+st20180613_R109_Y       11817145        55648194        347996
+st20180709_R113_2       10954606        48231098        283029
+st20180709_R113_3       12513592        54464216        337630
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.pass.bam *.target.bam | perl -ne 'print if /2019/' | perl -ne 'chomp; /(.+?)\.(.+?)\./; print "FILE: $1 $2\n"; system "samtools view $_"' | perl -ne 'chomp; if(/^FILE:\s(\S+)\s(\S+)/){ $file=$1; $tag=$2; $files{$file}=1; $tags{$tag}=1; }else{ @t=split; $cnt{$file}{$tag}++ if $t[0] ne $last; $last=$t[0] } if(eof){ for $t (sort keys %tags){ print "\t$t" } print "\n"; for $f (sort keys %files){ print "$f"; for $t (sort keys %tags){ if(exists $cnt{$f}{$t}){ print "\t$cnt{$f}{$t}" }else{ print "\t0" } } print "\n" } }'
+        blat    model   target
+st20191121_R145_AI      21324449        88770812        424886
+st20191121_R145_AJ      20882849        86629446        560935
+st20191121_R145_AK      22191016        90605870        589591
+st20191226_R117_AA      11248587        48653270        328944
+st20191226_R117_Z       11427764        51596220        298357
+st20191226_R128_AC      16267645        51485962        338479
+st20191226_R128_AE      16764819        51022918        316759
+st20191226_R130_AF      16899707        71230540        504867
+st20191226_R130_AG      16076306        66348638        498379
+st20191226_R130_AH      14842110        62253390        464863
+st20191226_R53_1        7780216 37342872        238915
+st20191226_R53_2        7886198 38932412        331925
+st20191226_R57_E        9601878 46968022        325156
+st20191226_R57_F        10241222        50053050        399429
+st20191226_R57_K        12091161        59088818        495775
+st20191226_R57_L        11311054        54891826        324497
+st20191226_R67_M        11072517        50230814        476178
+st20191226_R74_N        9683564 50381696        343010
+st20191226_R74_O        11128160        58181222        421338
+st20191226_R74_P        10779784        56401652        550598
+
+(dist)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.dist | perl -ne 'chomp; /(.+?)\./; print "SOURCE: $1\n"; system "cat $_"' | perl -ne 'chomp; if(/^SOURCE: (\S+)/){ $src=$1; $names{$src}=1 }else{ @t=split; $hash{$t[0]}{$src}=$t[1] if not /^#/ } if(eof){ print "dist"; for $name (sort keys %names){ print "\t$name" } print "\n"; for $idx (sort {$a<=>$b} keys %hash){ print "$idx"; for $name(sort keys %names){ if(exists $hash{$idx}{$name}){ print "\t$hash{$idx}{$name}" }else{ print "\t0" } } print "\n" } }' > summary.distN
+
+(merge - read1 reversed / sort / index)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.model.pass.bam *.blat.pass.bam | perl -ne 'chomp; /(.+?)\./; push @{$hash{$1}},$_; if(eof){ for $key (sort keys %hash){ $cmd="samtools merge -fn /dev/stdout @{$hash{$key}} | samtools view /dev/stdin | SamReverse.pl _1 | samtools view -Sbo $key.merged.bam -T DB/TAIR10_chr_all.fas /dev/stdin"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=5"; print "PBS: $pbsCMD\n"; system $pbsCMD } }'
+
+*
+yungi@HPC3:/RAID3/Projects/20220912_Schmidt$ ls *.merged.bam | perl -ne 'chomp; /(.+?)\./; $cmd="samtools sort $_ $1.sorted"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=20"; print "PBS: $pbsCMD\n"; system $pbsCMD'
+
+yungi@HPC3:/RAID3/Projects/20220912_Schmidt$ ls *.sorted.bam | perl -ne 'chomp; $cmd="samtools index $_"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=3"; print "PBS: $pbsCMD\n"; system $pbsCMD'
+
+(RPKM computation)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ cat DB/AtRTD3.cgff GFP/Target.cgff > DB/AtRTD3_target.cgff
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.merged.bam *.target.bam | perl -ne 'chomp; /(.+?)\./; push @{$hash{$1}},$_; if(eof){ for $key (sort keys %hash){ $cmd="java -classpath /home/bictools/Tools/rackJ/rackj.jar:/home/bictools/Tools/sam-1.89.jar rnaseq.RPKMComputer -GFF DB/AtRTD3_target.cgff -model DB/AtRTD3.model -M SAM ".join(" -M SAM ",@{$hash{$key}})." -O $key -ID 0.90 -direction true"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd >> log/$key.log \" | qsub -d $pwd -l ncpus=3"; print "PBS: $pbsCMD\n"; system $pbsCMD } }'
+
+(counts from RPKMComputer)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls log/*.log | perl -ne 'chomp; /.+\/(.+)\./; print "FILE: $1\n"; system "cat $_"' | perl -ne 'chomp; if(/^FILE: (\S+)/){ $file=$1 } if(/^program: (\S+)/){ $flag=0; $flag=1 if $1 eq "RPKMComputer" } if(/^#uniq.+?(\d+)/ && $flag){ $hash{$file}{"uniq"}=$1 } if(/^#multi.+?(\d+)/ && $flag){ $hash{$file}{"multi"}=$1 } if(/^#mapped.+?(\d+)/ && $flag){ $hash{$file}{"mapped"}=$1 } if(eof){ for $f (sort keys %hash){ print "$f"; for $c ("uniq","multi","mapped"){ print "\t$hash{$f}{$c}" } print "\n" } }' > readCnt.rpkm.info
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls log/*.log | perl -ne 'chomp; /.+\/(.+)\.log/; print "SAMPLE: $1\n"; system "cat $_";' | perl -ne 'chomp; if(/^SAMPLE: (\S+)/){ $sample=$1 }elsif(/^#(\S+)\s.+\s(\d+)/){ $hash{$sample}{$1}=$2 } if(eof){ for $s (sort keys %hash){ print "$s"; for $k ("uniq","multi","mapped"){ print "\t$hash{$s}{$k}" } print "\n" } }'
+st20150706_R19  75409791        463319  79956145
+st20150925_2-2_t1       47232421        338219  50087153
+st20150925_2-2_t2       48426895        301499  51297337
+st20150925_2-2_t3       45613475        288440  48331781
+st20160106_R33_3_t1     41256443        303844  43762180
+st20160106_R33_3_t2     37230004        280234  39499595
+st20160106_R34_1_t1     39340974        280658  41779606
+st20160106_R34_1_t2     42135222        417426  44853560
+st20160630_R48_1        58117133        398005  61650014
+st20160630_R48_2        53748502        352395  57008689
+st20160929_R55_A2       47307177        325237  50263585
+st20160929_R55_B        38089589        279875  40515721
+st20170123_R62_A        57354094        367780  60775493
+st20170123_R62_B        56430435        376030  59841472
+st20170123_R62_C        69012024        431042  73155603
+st20170526_R65_H        60104982        354153  63710128
+st20170526_R65_I        59269927        368889  62878602
+st20170526_R65_J        64195068        397927  68150244
+st20170811_R75_Q        60770893        389522  64571434
+st20170811_R75_R        61265629        370282  65006850
+st20170811_R75_S        57238198        347855  60693425
+st20170925_R78_T        70028480        437133  74461150
+st20170925_R78_U        66763642        447198  70978566
+st20170925_R78_V        72367543        508019  77024254
+st20180306_R96_2        163961650       1011844 173541929
+st20180613_R109_W       73340354        483051  77717856
+st20180613_R109_X       60836078        391393  64407745
+st20180613_R109_Y       63989174        424241  67813335
+st20180709_R113_2       56093194        379386  59468733
+st20180709_R113_3       63452730        447311  67315438
+st20191121_R145_AI      104364541       653851  110520147
+st20191121_R145_AJ      101929739       696119  108073230
+st20191121_R145_AK      107054171       708958  113386477
+st20191226_R117_AA      56841235        380194  60230801
+st20191226_R117_Z       59786332        393234  63322341
+st20191226_R128_AC      64474555        423728  68092086
+st20191226_R128_AE      64541135        432260  68104496
+st20191226_R130_AF      83633340        568321  88635114
+st20191226_R130_AG      78243271        527834  82923323
+st20191226_R130_AH      73200137        490462  77560363
+st20191226_R53_1        42661907        296791  45362003
+st20191226_R53_2        44273260        338337  47150535
+st20191226_R57_E        53571015        367890  56895056
+st20191226_R57_F        57171438        391853  60693701
+st20191226_R57_K        67620247        414406  71675754
+st20191226_R57_L        62707289        396591  66527377
+st20191226_R67_M        58276468        370602  61779509
+st20191226_R74_N        56976319        382586  60408270
+st20191226_R74_O        65754406        428833  69730720
+st20191226_R74_P        63819893        430086  67732034
+
+(normalization)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ RPKMnormalization.pl -method TMM -multi weighted *.geneRPKM > separate.TMM.RPKMs
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ RPKMnormalization.pl -multi weighted *.geneRPKM > separate.raw.RPKMs
+
+(RPKM correlation)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.geneRPKM | perl -ne 'chomp; push @files,$_; if(eof){ $cmd="RPKMcorrelation.pl @files -o correlation.RPKM.txt"; print "\nCMD: $cmd\n"; system $cmd }'
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.geneRPKM | perl -ne 'chomp; push @files,$_; if(eof){ $cmd="RPKMcorrelation.pl -read @files -o correlation.readCnt.txt"; print "\nCMD: $cmd\n"; system $cmd }'
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.geneRPKM | perl -ne 'chomp; push @files,$_; if(eof){ $cmd="RPKMcorrelation.pl -uniq @files -o correlation.uniqReadCnt.txt"; print "\nCMD: $cmd\n"; system $cmd }'
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.geneRPKM | perl -ne 'chomp; push @files,$_; if(eof){ $cmd="RPKMcorrelation.pl -log @files -o correlation.RPKM_log.txt"; print "\nCMD: $cmd\n"; system $cmd }'
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.geneRPKM | perl -ne 'chomp; push @files,$_; if(eof){ $cmd="RPKMcorrelation.pl -read -log @files -o correlation.readCnt_log.txt"; print "\nCMD: $cmd\n"; system $cmd }'
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.geneRPKM | perl -ne 'chomp; push @files,$_; if(eof){ $cmd="RPKMcorrelation.pl -uniq -log @files -o correlation.uniqReadCnt_log.txt"; print "\nCMD: $cmd\n"; system $cmd }'
+
+=============== RANDOM TEST
+
+(generate a list for random and manually edit it)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ mkdir rand
+
+wdlin@HPC3:/RAID3/Projects/20191226_Matzke$ head -1 separate.TMM.RPKMs | perl -ne 'chomp; @t=split; $i=0; for $x (@t){ $i++; print "$i\t$x\n" }' > rand/list.txt
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ head -3 rand/list.txt
+3       st20150706_R19
+4       st20150925_2-2_t1
+5       st20150925_2-2_t2
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ tail -n 3 rand/list.txt
+50      st20191226_R74_N
+51      st20191226_R74_O
+52      st20191226_R74_P
+
+(randome test for different numbers of replicates)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/rand$ mkdir rep3 rep5 rep25
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/rand$ cat list.txt | perl -ne 'chomp; @t=split; push @A,$t[0]; if(eof){ $rep=3; for $i (1..1000){ @B=@A; @list1=(); @list2=(); for $j (1..$rep){ $p=int(rand(@B)); push @list1,$B[$p]; splice(@B,$p,1) } for $j (1..$rep){ $p=int(rand(@B)); push @list2,$B[$p]; splice(@B,$p,1) } $cmd="TableMaker.pl -file ../separate.TMM.RPKMs -key 1 -na NA -col ".join(",",@list1).",".join(",",@list2)." -ttest 2-".($rep+2-1)." ".($rep+2)."-".($rep+2+$rep-1)." -error 1 -code -reheader n1 -prog \"{ my \\\$v1=average(\@t[1..".($rep+1-1)."]); }\" -error NA -code -reheader n2 -prog \"{ my \\\$v1=average(\@t[".($rep+1)."..".($rep+1+$rep-1)."]); }\" -ztest -2 -1 N1000000 N1000000 > rep3/random$i"; print "\nCMD: $cmd\n"; system $cmd } }'
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/rand$ cat list.txt | perl -ne 'chomp; @t=split; push @A,$t[0]; if(eof){ $rep=5; for $i (1..1000){ @B=@A; @list1=(); @list2=(); for $j (1..$rep){ $p=int(rand(@B)); push @list1,$B[$p]; splice(@B,$p,1) } for $j (1..$rep){ $p=int(rand(@B)); push @list2,$B[$p]; splice(@B,$p,1) } $cmd="TableMaker.pl -file ../separate.TMM.RPKMs -key 1 -na NA -col ".join(",",@list1).",".join(",",@list2)." -ttest 2-".($rep+2-1)." ".($rep+2)."-".($rep+2+$rep-1)." -error 1 -code -reheader n1 -prog \"{ my \\\$v1=average(\@t[1..".($rep+1-1)."]); }\" -error NA -code -reheader n2 -prog \"{ my \\\$v1=average(\@t[".($rep+1)."..".($rep+1+$rep-1)."]); }\" -ztest -2 -1 N1000000 N1000000 > rep5/random$i"; print "\nCMD: $cmd\n"; system $cmd } }'
+
+wdlin@head2:/RAID3/Projects/20230323_Matzke/rand$ cat list.txt | perl -ne 'chomp; @t=split; push @A,$t[0]; if(eof){ $rep=25; for $i (1..1000){ @B=@A; @list1=(); @list2=(); for $j (1..$rep){ $p=int(rand(@B)); push @list1,$B[$p]; splice(@B,$p,1) } for $j (1..$rep){ $p=int(rand(@B)); push @list2,$B[$p]; splice(@B,$p,1) } $cmd="TableMaker.pl -file ../separate.TMM.RPKMs -key 1 -na NA -col ".join(",",@list1).",".join(",",@list2)." -ttest 2-".($rep+2-1)." ".($rep+2)."-".($rep+2+$rep-1)." -error 1 -code -reheader n1 -prog \"{ my \\\$v1=average(\@t[1..".($rep+1-1)."]); }\" -error NA -code -reheader n2 -prog \"{ my \\\$v1=average(\@t[".($rep+1)."..".($rep+1+$rep-1)."]); }\" -ztest -2 -1 N1000000 N1000000 > rep25/random$i"; print "\nCMD: $cmd\n"; system $cmd } }'
+
+(random test summaries)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/rand$ perl -e '$cmd="TableMaker.pl -file ../separate.TMM.RPKMs -key 1 -col 2,-1 -na NA -file rep3/random1 -reheader random1 -col -4"; for $i (2..1000){ $cmd.=" -file rep3/random$i -reheader random$i -col -4" } system $cmd' > rep3.ttest.summary
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/rand$ perl -e '$cmd="TableMaker.pl -file ../separate.TMM.RPKMs -key 1 -col 2,-1 -na NA -file rep3/random1 -reheader random1 -col -1"; for $i (2..1000){ $cmd.=" -file rep3/random$i -reheader random$i -col -1" } system $cmd' > rep3.ztest.summary
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/rand$ perl -e '$cmd="TableMaker.pl -file ../separate.TMM.RPKMs -key 1 -col 2,-1 -na NA -file rep5/random1 -reheader random1 -col -4"; for $i (2..1000){ $cmd.=" -file rep5/random$i -reheader random$i -col -4" } system $cmd' > rep5.ttest.summary
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/rand$ perl -e '$cmd="TableMaker.pl -file ../separate.TMM.RPKMs -key 1 -col 2,-1 -na NA -file rep5/random1 -reheader random1 -col -1"; for $i (2..1000){ $cmd.=" -file rep5/random$i -reheader random$i -col -1" } system $cmd' > rep5.ztest.summary
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/rand$ perl -e '$cmd="TableMaker.pl -file ../separate.TMM.RPKMs -key 1 -col 2,-1 -na NA -file rep25/random1 -reheader random1 -col -4"; for $i (2..1000){ $cmd.=" -file rep25/random$i -reheader random$i -col -4" } system $cmd' > rep25.ttest.summary
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/rand$ perl -e '$cmd="TableMaker.pl -file ../separate.TMM.RPKMs -key 1 -col 2,-1 -na NA -file rep25/random1 -reheader random1 -col -1"; for $i (2..1000){ $cmd.=" -file rep25/random$i -reheader random$i -col -1" } system $cmd' > rep25.ztest.summary
+
+(frequency)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/rand$ for f in *test.summary
+> do
+> cat $f | perl -ne 'chomp; @t=split; if(/^#/){@thresh=(0.1,0.05,0.01,0.005,0.001); print "$t[0]\t$t[1]\t$t[2]\tth_".join("\tth_",@thresh)."\n";next} $line="$t[0]\t$t[1]\t$t[2]"; for $th(@thresh){ $c=0; for $i(3..@t-1){ $c++ if $t[$i]<=$th } $line.="\t$c" } print "$line\n"' > $f.freq
+> done
+
+=============== DEG check, example
+
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/OneDrive/TODO/STx50/20230323_AtRTD3/random/TEST1$ ./abovePick.pl geneLogAvgStdev.txt z25top100.txt > z25top100.remove.txt
+
+NOTE: the output list in z25top100.remove.txt is exactly the same with that in z25top100.txt
+
+=============== non-expressed gene
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ cat *.geneRPKM | perl -ne 'chomp; if(/^#/){}else{ @t=split; $hash{$t[0]}+=$t[2] } if(eof){ for $k (sort keys %hash){ print "$k\t$hash{$k}\n" if $hash{$k}<=0} }' > nonExpressed.txt
+
+=============== IR pref
+
+(coverage arrays)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ cat DB/AtRTD3_IP.cgff GFP/Target.cgff > DB/AtRTD3_IP_target.cgff
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.merged.bam *.target.bam | perl -ne 'chomp; /(.+?)\./; push @{$hash{$1}},$_; if(eof){ for $key (sort keys %hash){ $cmd="java -classpath /home/bictools/Tools/rackJ/rackj.jar:/home/bictools/Tools/sam-1.89.jar rnaseq.GeneCoverageArray -GFF DB/AtRTD3_IP_target.cgff -M SAM ".join(" -M SAM ",@{$hash{$key}})." -exon false -O $key -ID 0.90 -direction true"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd >> log/$key.log \" | qsub -d $pwd -l ncpus=3"; print "PBS: $pbsCMD\n"; system $pbsCMD } }'
+
+(intron/exon depth)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.geneCoverage | perl -ne 'chomp; $cmd="intronExonAvgDepth.pl DB/AtRTD3_IP_target.cgff $_"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=2"; print "PBS: $pbsCMD\n"; system $pbsCMD'
+
+(generate table of IRs in depth)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ mkdir irPref
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.depth.intronCount | perl -ne 'chomp; /(.+?)\./; $cmd="scripts/irTable.pl DB/AtRTD3_IP_target.cgff $1.depth.intronCount $1.depth.exonCount > irPref/$1.IRs"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=2"; print "PBS: $pbsCMD\n"; system $pbsCMD'
+
+(neighbor relation)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls irPref/* | perl -ne 'chomp; /.+\/(.+)\./; print "FILE: $1\n"; system "cat $_"' | perl -ne 'chomp; if(/^FILE: (\S+)/){ $file=$1; push @files,$file }elsif(/^#/){}else{ @t=split; $key="$t[0]\t$t[1]\t$t[3]\t$t[5]\t$t[7]"; $flag=0; $flag+=1 if $t[2]<$t[4]*2; $flag+=2 if $t[2]<$t[6]*2; $hash{$key}{$file}=$flag } if(eof){ print "#gene\tintron\tintron_Len\texonA_Len\texonB_Len"; for $f (@files){ print "\t$f" } print "\n"; for $k (sort keys %hash){ print "$k"; for $f (@files){ print "\t$hash{$k}{$f}" } print "\n"; } }' > neighborRelation.txt
+
+(neighborRelation.ans.txt was made by seeing depth relation between every intron and it two neighbors. 3 => both exons, A/B => first/second exon)
+
+(ratioA)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls irPref/* | perl -ne 'chomp; /.+\/(.+)\./; print "FILE: $1\n"; system "cat $_"' | perl -ne 'if($.==1){ open(FILE,"<neighborRelation.ans.txt"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $lookup{"$s[0]\t$s[1]"}=$s[2]; } close FILE } chomp; if(/^FILE: (\S+)/){ $file=$1; push @files,$file }elsif(/^#/){}else{ @t=split; $key="$t[0]\t$t[1]\t$t[3]\t$t[5]\t$t[7]"; $type=""; $D=$t[4]; $type=$lookup{"$t[0]\t$t[1]"}; $key.="\t$type"; if($D>0){ $hash{$key}{$file}=$t[2]/$D }else{ $hash{$key}{$file}="" } } if(eof STDIN){ print "#gene\tintron\tintron_Len\texonA_Len\texonB_Len\trefType"; for $f (@files){ print "\t$f" } print "\n"; for $k (sort keys %hash){ print "$k"; for $f (@files){ print "\t$hash{$k}{$f}" } print "\n"; } }' > ratioA.txt
+
+(ratioB)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls irPref/* | perl -ne 'chomp; /.+\/(.+)\./; print "FILE: $1\n"; system "cat $_"' | perl -ne 'if($.==1){ open(FILE,"<neighborRelation.ans.txt"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $lookup{"$s[0]\t$s[1]"}=$s[2]; } close FILE } chomp; if(/^FILE: (\S+)/){ $file=$1; push @files,$file }elsif(/^#/){}else{ @t=split; $key="$t[0]\t$t[1]\t$t[3]\t$t[5]\t$t[7]"; $type=""; $D=$t[6]; $type=$lookup{"$t[0]\t$t[1]"}; $key.="\t$type"; if($D>0){ $hash{$key}{$file}=$t[2]/$D }else{ $hash{$key}{$file}="" } } if(eof STDIN){ print "#gene\tintron\tintron_Len\texonA_Len\texonB_Len\trefType"; for $f (@files){ print "\t$f" } print "\n"; for $k (sort keys %hash){ print "$k"; for $f (@files){ print "\t$hash{$k}{$f}" } print "\n"; } }' > ratioB.txt
+
+(ratioProduct3_higher0.7.xlsx for selecting all above 0.7 IRs)
+
+(get intron info in gene orientation)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ scripts/irAdjust.pl DB/AtRTD3_IP_target.cgff ratioProduct3_higher0.7.in > ratioProduct3_higher0.7.out
+
+=================== compute ratios based on uniq depths of exons & all depths of introns, for lower retained introns
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ mkdir multiDepth
+
+(coverage arrays)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls *.merged.bam *.target.bam | perl -ne 'chomp; /(.+?)\./; push @{$hash{$1}},$_; if(eof){ for $key (sort keys %hash){ $cmd="java -classpath /home/bictools/Tools/rackJ/rackj.jar:/home/bictools/Tools/sam-1.89.jar rnaseq.GeneCoverageArray -GFF DB/AtRTD3_IP_target.cgff -M SAM ".join(" -M SAM ",@{$hash{$key}})." -exon false -O multiDepth/$key -ID 0.90 -direction true -multi true"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd >> log/$key.log \" | qsub -d $pwd -l ncpus=3"; print "PBS: $pbsCMD\n"; system $pbsCMD } }'
+
+(intron/exon depth)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/multiDepth$ ls *.geneCoverage | perl -ne 'chomp; $cmd="intronExonAvgDepth.pl ../DB/AtRTD3_IP_target.cgff $_"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=2"; print "PBS: $pbsCMD\n"; system $pbsCMD'
+
+(generate table of IRs in depth)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ mkdir multiUniqDepth
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ mkdir multiUniqDepth/irPref
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ ls multiDepth/*.depth.intronCount | perl -ne 'chomp; /.+\/(.+?)\./; $cmd="scripts/irTable.pl DB/AtRTD3_IP_target.cgff multiDepth/$1.depth.intronCount $1.depth.exonCount > multiUniqDepth/irPref/$1.IRs"; print "\nCMD: $cmd\n"; $pwd=`pwd`; chomp $pwd; $pbsCMD="echo \"$cmd\" | qsub -d $pwd -l ncpus=2"; print "PBS: $pbsCMD\n"; system $pbsCMD'
+
+(neighbor relation)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/multiUniqDepth$ ls irPref/* | perl -ne 'chomp; /.+\/(.+)\./; print "FILE: $1\n"; system "cat $_"' | perl -ne 'chomp; if(/^FILE: (\S+)/){ $file=$1; push @files,$file }elsif(/^#/){}else{ @t=split; $key="$t[0]\t$t[1]\t$t[3]\t$t[5]\t$t[7]"; $flag=0; $flag+=1 if $t[2]<$t[4]*2; $flag+=2 if $t[2]<$t[6]*2; $hash{$key}{$file}=$flag } if(eof){ print "#gene\tintron\tintron_Len\texonA_Len\texonB_Len"; for $f (@files){ print "\t$f" } print "\n"; for $k (sort keys %hash){ print "$k"; for $f (@files){ print "\t$hash{$k}{$f}" } print "\n"; } }' > neighborRelation.txt
+
+(neighborRelation.ans.txt was made by seeing depth relation between every intron and it two neighbors. 3 => both exons, A/B => first/second exon)
+
+(ratioA)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/multiUniqDepth$ ls irPref/* | perl -ne 'chomp; /.+\/(.+)\./; print "FILE: $1\n"; system "cat $_"' | perl -ne 'if($.==1){ open(FILE,"<neighborRelation.ans.txt"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $lookup{"$s[0]\t$s[1]"}=$s[2]; } close FILE } chomp; if(/^FILE: (\S+)/){ $file=$1; push @files,$file }elsif(/^#/){}else{ @t=split; $key="$t[0]\t$t[1]\t$t[3]\t$t[5]\t$t[7]"; $type=""; $D=$t[4]; $type=$lookup{"$t[0]\t$t[1]"}; $key.="\t$type"; if($D>0){ $hash{$key}{$file}=$t[2]/$D }else{ $hash{$key}{$file}="" } } if(eof STDIN){ print "#gene\tintron\tintron_Len\texonA_Len\texonB_Len\trefType"; for $f (@files){ print "\t$f" } print "\n"; for $k (sort keys %hash){ print "$k"; for $f (@files){ print "\t$hash{$k}{$f}" } print "\n"; } }' > ratioA.txt
+
+(ratioB)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/multiUniqDepth$ ls irPref/* | perl -ne 'chomp; /.+\/(.+)\./; print "FILE: $1\n"; system "cat $_"' | perl -ne 'if($.==1){ open(FILE,"<neighborRelation.ans.txt"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $lookup{"$s[0]\t$s[1]"}=$s[2]; } close FILE } chomp; if(/^FILE: (\S+)/){ $file=$1; push @files,$file }elsif(/^#/){}else{ @t=split; $key="$t[0]\t$t[1]\t$t[3]\t$t[5]\t$t[7]"; $type=""; $D=$t[6]; $type=$lookup{"$t[0]\t$t[1]"}; $key.="\t$type"; if($D>0){ $hash{$key}{$file}=$t[2]/$D }else{ $hash{$key}{$file}="" } } if(eof STDIN){ print "#gene\tintron\tintron_Len\texonA_Len\texonB_Len\trefType"; for $f (@files){ print "\t$f" } print "\n"; for $k (sort keys %hash){ print "$k"; for $f (@files){ print "\t$hash{$k}{$f}" } print "\n"; } }' > ratioB.txt
+
+(ratioProduct2.xlsx for individual neighbor ratio check, lower retention levels, summarized in lowerIR.xlsx)
+
+(compute minimum non-zero intron depth for each ST sample)
+wdlin@HPC3:/RAID3/Projects/20191226_Matzke/20200821$ mkdir MinNzIntron
+
+(binned minimum non-zero per sample)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/multiUniqDepth$ ls irPref/* | perl -ne 'chomp; /.+\/(.+)\./; print "FILE: $1\n"; system "cat $_"' | perl -ne 'chomp; if(/^FILE: (\S+)/){ $file=$1 }elsif(/^#/){}else{ $scale=50; @t=split; $intronLen=$t[3]; $intronLen=$scale*(int($intronLen/$scale)+1); $intronLenHash{$intronLen}=1; next if $t[2]<=0; if(exists $hash{$file}{$intronLen}){ $hash{$file}{$intronLen}=$t[2] if $hash{$file}{$intronLen}>$t[2] }else{ $hash{$file}{$intronLen}=$t[2] } if(exists $hash{"ALL"}{$intronLen}){ $hash{"ALL"}{$intronLen}=$t[2] if $hash{"ALL"}{$intronLen}>$t[2] }else{ $hash{"ALL"}{$intronLen}=$t[2] } } if(eof){ for $f (sort keys %hash){ print "\t$f" } print "\n"; for $len (sort {$a<=>$b} keys %intronLenHash){ print "$len"; for $f (sort keys %hash){ if(exists $hash{$f}{$len}){ print "\t$hash{$f}{$len}"; }else{ print "\t"; } } print "\n"; } }' > intronMinNZperSample.txt
+
+(decide to take ALL column for zero replacement)
+
+(modify irPref files with zero replacement)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/multiUniqDepth$ mkdir irPref_NZ
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/multiUniqDepth$ ls irPref/* | perl -ne 'chomp; /.+\/(.+)/; print "FILE: $1\n"; system "cat $_"' | perl -ne 'if($.==1){ open(FILE,"<intronMinNZperSample.txt"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); next if $line!~/^\d/; $replace{$s[0]}=$s[1]/10 } close FILE } chomp; if(/^FILE: (\S+)/){ open(FILE,">irPref_NZ/$1"); }elsif(/^#/){ print FILE "$_\n"; }else{ $scale=50; @t=split; $intronLen=$t[3]; $intronLen=$scale*(int($intronLen/$scale)+1); if($t[2]<=0){ $t[2]=$replace{$intronLen} } print FILE join("\t",@t)."\n" }'
+
+(ratioA, NZ)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/multiUniqDepth$ ls irPref_NZ/* | perl -ne 'chomp; /.+\/(.+)\./; print "FILE: $1\n"; system "cat $_"' | perl -ne 'if($.==1){ open(FILE,"<neighborRelation.ans.txt"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $lookup{"$s[0]\t$s[1]"}=$s[2]; } close FILE } chomp; if(/^FILE: (\S+)/){ $file=$1; push @files,$file }elsif(/^#/){}else{ @t=split; $key="$t[0]\t$t[1]\t$t[3]\t$t[5]\t$t[7]"; $type=""; $D=$t[4]; $type=$lookup{"$t[0]\t$t[1]"}; $key.="\t$type"; if($D>0){ $hash{$key}{$file}=$t[2]/$D }else{ $hash{$key}{$file}="" } } if(eof STDIN){ print "#gene\tintron\tintron_Len\texonA_Len\texonB_Len\trefType"; for $f (@files){ print "\t$f" } print "\n"; for $k (sort keys %hash){ print "$k"; for $f (@files){ print "\t$hash{$k}{$f}" } print "\n"; } }' > ratioA_NZ.txt
+
+(ratioB, NZ)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/multiUniqDepth$ ls irPref_NZ/* | perl -ne 'chomp; /.+\/(.+)\./; print "FILE: $1\n"; system "cat $_"' | perl -ne 'if($.==1){ open(FILE,"<neighborRelation.ans.txt"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $lookup{"$s[0]\t$s[1]"}=$s[2]; } close FILE } chomp; if(/^FILE: (\S+)/){ $file=$1; push @files,$file }elsif(/^#/){}else{ @t=split; $key="$t[0]\t$t[1]\t$t[3]\t$t[5]\t$t[7]"; $type=""; $D=$t[6]; $type=$lookup{"$t[0]\t$t[1]"}; $key.="\t$type"; if($D>0){ $hash{$key}{$file}=$t[2]/$D }else{ $hash{$key}{$file}="" } } if(eof STDIN){ print "#gene\tintron\tintron_Len\texonA_Len\texonB_Len\trefType"; for $f (@files){ print "\t$f" } print "\n"; for $k (sort keys %hash){ print "$k"; for $f (@files){ print "\t$hash{$k}{$f}" } print "\n"; } }' > ratioB_NZ.txt
+
+(get intron info in gene orientation)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/multiUniqDepth$ ../scripts/irAdjust.pl ../DB/AtRTD3_IP_target.cgff ratioProduct2_lower.in > ratioProduct2_lower.out
+
+=================== ir ratio stdev
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke$ scripts/irAdjust.pl DB/AtRTD3_IP_target.cgff ratioStdev.txt > ratioStdev.out
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/multiUniqDepth$ ../scripts/irAdjust.pl ../DB/AtRTD3_IP_target.cgff LEAST_IR_TEST_0.1.txt > LEAST_IR_TEST_0.1.out
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/multiUniqDepth$ ../scripts/irAdjust.pl ../DB/AtRTD3_IP_target.cgff LEAST_IR_TEST_0.01.txt > LEAST_IR_TEST_0.01.out
+
+(compute D in KS test for 50 ratios, comparing to uniform distribution)
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/IR_VARIABLE$ cat ratioMax1.txt | perl -ne 'if($.==1){ print "#gene\tintron\tD\n"; next; } chomp; @t=split(/\t/); @arr=sort {$a<=>$b} @t[-50..-1]; $dMax=0; for($i=0;$i<@arr;$i++){ $frac=($i+1)/@arr; $diff=abs($frac-$arr[$i]); $dMax=$diff if $diff>$dMax } print "$t[0]\t$t[1]\t$dMax\n";' > ratioMax1_ksD.xls
+
+wdlin@HPC3:/RAID3/Projects/20230323_Matzke/IR_VARIABLE$ ../scripts/irAdjust.pl ../DB/AtRTD3_IP_target.cgff ratioMax1_ksD.intron.in > ratioMax1_ksD.intron.out
