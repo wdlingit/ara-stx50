@@ -1,0 +1,76 @@
+
+NOTE: using 201606 Araport11 GFF3 with updated GO annotations
+
+SOURCES:
+Araport11.strand.model: /nas/Projects/DataSource/A.Thaliana/Araport11
+
+(FRAME)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223$ grep ">" Araport11.strand.model | perl -ne 'chomp; @t=split; /^>(\S+)/; push @{$hash{$t[-1]}},$1; if(eof){ print "User Data\n reference\n"; for $k (sort keys %hash){ print "  RP:$k\n"; for $t (@{$hash{$k}}){ print "   PR:transcript:$t\n" } } }' > Arabidobsis.araport11.0.tree
+
+(generate transcript ipr-description annotation)
+wdlin@HPC3:/RAID3/Projects/20230223_Araport11GO$ cat /RAID3/Projects/20230111_Wu/baseList.txt | perl -ne 'chomp; if($.==1){ open(FILE,"</nas/Projects/DataSource/InterPro/20210827/iprDescription.txt"); while($line=<FILE>){ chomp $line; @t=split(/\t/,$line); $hash{$t[0]}=$t[1]; } close FILE } @t=split; next if not $t[2]=~/IPR/; while($t[2]=~/(IPR\d+)/g){ $desc=$hash{$1}; $domain{$t[0]}{"PR:InterPro:$1:$desc"}=1; } if(eof){ for $id ( sort {$a cmp $b} keys %domain){ for $ipr (sort {$a cmp $b} keys %{$domain{$id}}){ print "PR:transcript:$id\t$ipr\n" } } }' > transcriptsInterPro.m
+
+(GO annotation)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223$ cat ../annotation20230223/tair.gaf.NR | perl -ne 'chomp; @t=split; print "RP:$t[0]\t$t[2]\n"' > go.m
+
+(description)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223$ cat ../annotation20190530/Araport11.description.geneSummary | perl -ne 'chomp; next if /^#/; @t=split(/\t/); $t[1]=~s/^\s+|\s+$//g; print "RP:$t[0]\tPR:description:$t[1]\n" if length($t[1])>0' > description.m
+
+(aracyc)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223$ wget ftp://ftp.plantcyc.org/pmn/Pathways/Data_dumps/PMN15.5_January2023/pathways/aracyc_pathways.20230103
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223$ wget ftp://ftp.plantcyc.org/pmn/Pathways/Data_dumps/PMN15.5_January2023/compounds/aracyc_compounds.20230103
+
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223$ cat aracyc_pathways.20230103 | perl -ne 'next if $.==1; chomp; @t=split(/\t/); next if $t[6]=~/\s/ || (not $t[6]=~/^AT/); print "RP:$t[6]\tPR:AraCyc:$t[1]\n"' > aracyc.m
+
+(all annotations)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223$ cat *.m > annotation.list
+
+(Tree build)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/OneDrive/WDLIN/Project0/gobuRelease$ java -classpath gobu.jar bio301.goutil.gobu.data.AddAnnotation -I /mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223/Arabidobsis.araport11.0.tree -S /mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223/annotation.list -O /mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223/Arabidobsis.araport11.1.tree -OBO /mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223/go-basic.obo -C true
+program: AddAnnotation
+input filename (-I): /mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223/Arabidobsis.araport11.0.tree
+subtree filename (-S): /mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223/annotation.list
+output filename (-O): /mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223/Arabidobsis.araport11.1.tree
+OBO filename (-OBO): /mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223/go-basic.obo
+coverage check (-C): true
+
+Nodes not covered:
+AT3G63550
+
+AT1G31672
+
+AT4G23712
+
+AT4G18257
+
+AT1G01184
+
+AT5G03671
+
+ATGSTF1
+
+AT4G19829
+
+AT1G77763
+
+AT1G14070
+
+AT1G63560
+
+AT2G33430
+
+AT2G47584
+
+AT4G17787
+
+AT5G25752
+
+AT1G47401
+
+AT5G65075
+
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/OneDrive/WDLIN/Project0/gobuRelease$ java -classpath gobu.jar bio301.goutil.gobu.data.TreeSorter -I /mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223/Arabidobsis.araport11.1.tree -O /mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223/Arabidobsis.araport11.out.tree -OBO /mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223/go-basic.obo
+program: TreeSorter
+input filename (-I): /mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223/Arabidobsis.araport11.1.tree
+output filename (-O): /mnt/c/Users/kall/Qsync/tmp/Araport11/gobu20230223/Arabidobsis.araport11.out.tree
+OBO filename (-OBO): /mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223/go-basic.obo

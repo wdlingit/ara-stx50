@@ -1,0 +1,143 @@
+
+NOTE: this log was for using Araport11 GFF3 download by 202303 and got a number of missing ATMG genes. Decide to use previous Araport11 (201606) version for GOBU tree.
+
+(extract gene features, redo for double check)
+wdlin@head2:~/Test/Araport11/annotation20190530$ cat features
+1       gene
+1       pseudogene
+1       transposable_element_gene
+2       mRNA
+2       lnc_RNA
+2       antisense_lncRNA
+2       miRNA_primary_transcript
+2       transcript_region
+2       tRNA
+2       antisense_RNA
+2       snoRNA
+2       ncRNA
+2       snRNA
+2       rRNA
+2       pseudogenic_transcript
+2       pseudogenic_tRNA
+
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat ../Araport11_20230223/Araport11_GFF3_genes_transposons.fixed.gff | perl -ne 'if($.==1){ open(FILE,"<features"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $feature{$s[1]}=$s[0]; } close FILE; } chomp; @t=split(/\t/); $t[8].=";"; if(exists $feature{$t[2]}){ $level=$feature{$t[2]}; ($id)=$t[8]=~/ID=(.+?);/; if($level==2){ $t[8]=~/Parent=(.+?);/ || $t[8]=~/Derives_from=(.+?);/; $id=$1 } $geneInfo{$id}{$level}=$t[2] } if(eof){ for $g (sort keys %geneInfo){ print "$g"; for $l ("1","2"){ print "\t$geneInfo{$g}{$l}" } print "\n" } }' | perl -ne 'chomp; @t=split; print "$t[0]\t"; if($t[1] eq "transposable_element_gene"){ print "$t[1]\n" }else{ print "$t[2]\n" }' > gene.features
+
+(extract Note / computational_description / curator_summary)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat ../Araport11_20230223/Araport11_GFF3_genes_transposons.fixed.gff | perl -ne 'if($.==1){ open(FILE,"<features"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $feature{$s[1]}=$s[0]; } close FILE; } chomp; @t=split(/\t/); if($feature{$t[2]}==1){ $t[8].=";" if $t[8]!~/;$/; $tmpstr=$t[8]; while($tmpstr=~/^([^,;=]+?)=(.+)$/){ $key=$1; $hash{$key}++; $tmpstr=$2; if($tmpstr=~/(.+?);\s*([\S^=]+?=.+)/){ $val=$1; $tmpstr=$2 }else{ ($val)=$tmpstr=~/(.+);/; $tmpstr=""; } } } if(eof){ for $k (sort keys %hash){ print "$k\t$hash{$k}\n" } }'
+Alias   1
+Dbxref  9049
+ID      38089
+Name    38065
+Note    13829
+computational_description       13538
+curator_summary 8059
+description     1069
+exception       1
+full_name       9854
+gbkey   57
+gene    57
+gene_synonym    8
+id2     57
+locus   23699
+locus_type      37927
+nochangenat-description 44
+part    1
+partial 1
+pseudo  3
+start_range     1
+symbol  10135
+
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat ../Araport11_20230223/Araport11_GFF3_genes_transposons.fixed.gff | perl -ne 'if($.==1){ open(FILE,"<features"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $feature{$s[1]}=$s[0]; } close FILE; } chomp; @t=split(/\t/); if($feature{$t[2]}==2){ $t[8].=";" if $t[8]!~/;$/; $tmpstr=$t[8]; while($tmpstr=~/^([^,;=]+?)=(.+)$/){ $key=$1; $hash{$key}++; $tmpstr=$2; if($tmpstr=~/(.+?);\s*([\S^=]+?=.+)/){ $val=$1; $tmpstr=$2 }else{ ($val)=$tmpstr=~/(.+);/; $tmpstr=""; } } } if(eof){ for $k (sort keys %hash){ print "$k\t$hash{$k}\n" } }'
+Dbxref  31869
+ID      59672
+NEWNote 3
+Name    59666
+Note    59652
+Parent  59672
+UniProt 1
+computational_description       59146
+conf_class      34463
+conf_rating     34148
+curator_summary 59392
+description     6
+exception       2
+full_name       17956
+gbkey   54
+gene    12710
+gene_synonym    6
+id2     54
+index   4901
+locus_type      29
+parent2 25
+part    1
+partial 1
+product 25
+start_range     1
+symbol  59360
+
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat ../Araport11_20230223/Araport11_GFF3_genes_transposons.fixed.gff | perl -ne 'if($.==1){ open(FILE,"<features"); while($line=<FILE>){ chomp $line; @s=split(/\s+/,$line); $feature{$s[1]}=$s[0]; } close FILE; } chomp; @t=split(/\t/); if($feature{$t[2]}==2){ $t[8].=";" if $t[8]!~/;$/; ($id)=$t[8]=~/ID=(.+?);/; $tmpstr=$t[8]; while($tmpstr=~/^([^,;=]+?)=(.+)$/){ $key=$1; $tmpstr=$2; if($tmpstr=~/(.+?);\s*([\S^=]+?=.+)/){ $val=$1; $tmpstr=$2 }else{ ($val)=$tmpstr=~/(.+);/; } $hash{$id}{$key}=$val; } } if(eof STDIN){ print "#transcript\tNote\tcomputational_description\tcurator_summary\n"; for $id (sort keys %hash){ print "$id"; for $k ("Note","computational_description","curator_summary"){ if(exists $hash{$id}{$k}){ print "\t$hash{$id}{$k}" } else{ print "\t" } } print "\n" } }' > Araport11.description.txt
+
+(looking for IDs with non-processable encoding)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat Araport11.description.txt | perl -ne 'print if /\%/' | perl -MHTML::Entities -Xne 'while(/(\S+\s+)/g){ $x=$1; $x=~s/%([0-9A-Fa-f]{2})/chr(hex($1))/eg; print decode_entities($x) }' | less
+
+(visual confirm)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat Araport11.description.txt | perl -MHTML::Entities -Xne 'while(/(\S+\s+)/g){ $x=$1; $x=~s/%([0-9A-Fa-f]{2})/chr(hex($1))/eg; print decode_entities($x) }' | perl -ne 'print if /[^[:ascii:]]/' | less
+
+(done)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat Araport11.description.fix0.txt | perl -MHTML::Entities -Xne 'while(/(\S+\s+)/g){ $x=$1; $x=~s/%([0-9A-Fa-f]{2})/chr(hex($1))/eg; print decode_entities($x) }' > Araport11.description.fix1.txt
+
+(check)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat Araport11.description.fix1.txt | perl -ne 'chomp; @t=split(/\t/,$_,-1); $cnt=@t; $hash{$cnt}++; if(eof){ for $k (sort keys %hash){ print "$k\t$hash{$k}\n" } }'
+4       59673
+
+(generate gene-wise table)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat Araport11.description.fix1.txt | perl -ne 'chomp; @t=split(/\t/,$_); $t[2]=~s/\.$//; @compList=split(/; /,$t[2]); if($t[0]=~/(.+?)\./){ $gene=$1 }else{ $gene=$t[0] } $desc{$gene}{$t[1]}=1 if length($t[1])>0; $curator{$gene}{$t[3]}=1 if length($t[3])>0; $i=0; for $str (@compList){ $str=~s/^\s+|\s+$//g; $comp{$gene}{$str}=$i++ if length($str)>0 } $geneSet{$gene}=1 if length($t[2])>0 || length($t[3])>0 || length($t[4])>0; if(eof STDIN){ print $header; for $gene (sort {$a cmp $b} keys %geneSet){ print "$gene\t".join(" | ",sort {$a cmp $b} keys %{$desc{$gene}})."\t".join("; ",sort {$comp{$gene}{$a} cmp $comp{$gene}{$b} || $a cmp $b} keys %{$comp{$gene}})."\t".join(" | ",sort {$a cmp $b} keys %{$curator{$gene}})."\n" } }' > Araport11.description.geneSummar
+y
+
+(GO annotation in GAF)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ wget http://current.geneontology.org/annotations/tair.gaf.gz
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ wget http://purl.obolibrary.org/obo/go/go-basic.obo
+
+(get GO term names)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat go-basic.obo | perl -ne 'print; if(eof){ chomp; s/^\s+|\s+$//g; print "\n" if length==0 }' | perl -ne 'if($.==1){ $flag=0 } s/^\s+|\s+$//g; if(/^\[Term\]/){ $flag=1; %termIDs=() }elsif( length==0 ){ $flag=0; for $id (keys %termIDs){ $termHash{$id}=$term } }elsif($flag){ if(/^id:\s+(\S+)/ || /^alt_id:\s+(\S+)/){ $termIDs{$1}=1 } if(/^name:\s(.+)$/){ $term=$1 } } if(eof){ for $k (sort keys %termHash){ print "$k\t$termHash{$k}\n" } }' > go.termNames
+
+(parse tair GAF)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat tair.gaf | perl -ne 'print if not /^!/' | perl -ne 'chomp; @t=split(/\t/); $hash{$t[0]}++; if(eof){ for $k (sort keys %hash){ print "$k\t$hash{$k}\n" } }'
+AGI_LocusCode   225574
+TAIR    38719
+UniProtKB       2708
+
+NOTE: TAIR part seems related with units without AT0G12345 IDs. Decide not to process them.
+
+(GAF AGI_LocusCode part)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat tair.gaf | perl -ne 'print if not /^!/' | perl -ne 'chomp; @t=split(/\t/); $hash{$t[0]}++; print "$_\n" if $t[0] eq "AGI_LocusCode"' | perl -ne 'chomp; @t=split(/\t/); chomp $t[9]; $t[9].=" $t[9] "; chomp $t[10]; $t[10].="|"; if($t[9]=~/\s(AT.G\d\d\d\d\d)\s/i){ $t[9]=uc($1); print "$t[9]\t$t[8]\t$t[4]\n" }elsif($t[10]=~/(AT.G\d\d\d\d\d)\|/){ $t[10]=uc($1); print "$t[10]\t$t[8]\t$t[4]\n" }' | wc -l
+225574
+
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat tair.gaf | perl -ne 'print if not /^!/' | perl -ne 'chomp; @t=split(/\t/); $hash{$t[0]}++; print "$_\n" if $t[0] eq "AGI_LocusCode"' | perl -ne 'chomp; @t=split(/\t/); chomp $t[9]; $t[9].=" $t[9] "; chomp $t[10]; $t[10].="|"; if($t[9]=~/\s(AT.G\d\d\d\d\d)\s/i){ $t[9]=uc($1); print "$t[9]\t$t[8]\t$t[4]\n" }elsif($t[10]=~/(AT.G\d\d\d\d\d)\|/){ $t[10]=uc($1); print "$t[10]\t$t[8]\t$t[4]\n" }' > tair.gaf.partAGI
+
+(GAF UniPort part)
+wdlin@HPC3:/RAID3/Projects/20230223_Araport11GO$ cat tair.gaf | perl -ne 'print if not /^!/' | perl -ne 'chomp; @t=split(/\t/); $hash{$t[0]}++; print "$_\n" if $t[0] eq "UniProtKB"' | perl -ne 'if($.==1){ open(FILE,"</RAID3/Projects/20230111_Wu/Col2Uniprot.top.filtered.sam"); while($line=<FILE>){ chomp $line; @s=split(/\t/,$line); $s[0]=~/(.+?)\./; $hash{$s[2]}{$1}=1 } close FILE; open(FILE,"</nas/Projects/DataSource/UniProt/20210826/ArabidopsisUniProt.txt"); while($line=<FILE>){ @s=split(/\s+/,$line); if($s[0] eq "AC"){ shift @s; $key=shift @s; $key=substr($key,0,-1); $map{$key}=$key; for $x (@s){ $map{substr($x,0,-1)}=$key } } } close FILE } chomp; @t=split(/\t/); if( (exists $map{$t[1]}) && (exists $hash{$map{$t[1]}}) ){ for $x (keys %{$hash{$map{$t[1]}}}){ print "$x\t$t[8]\t$t[4]\n" } }elsif($t[2]=~/^AT.G\d\d\d\d\d$/i){ $t[9]=uc($t[2]); print "$t[9]\t$t[8]\t$t[4]\n" }' > tair.gaf.partUniPort
+
+(non-redundant)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ wc -l tair.gaf.part*
+ 225574 tair.gaf.partAGI
+   2428 tair.gaf.partUniPort
+ 228002 total
+
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat tair.gaf.part* | perl -ne 'chomp; $hash{$_}=1; if(eof){ $cnt=keys %hash; print "$cnt\n" }'
+173850
+
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat tair.gaf.part* | perl -ne 'chomp; $hash{$_}=1; if(eof){ for $k (sort keys %hash){ print "$k\n"} }' > tair.gaf.NR
+
+(GO terms)
+wdlin@DESKTOP-2FB6SLB:/mnt/c/Users/kall/Qsync/tmp/Araport11/annotation20230223$ cat tair.gaf.NR | perl -ne 'if($.==1){ open(FILE,"<go.termNames"); while($line=<FILE>){ chomp $line; @s=split(/\t/,$line); $hash{$s[0]}=$s[1] } close FILE } chomp; @t=split; $t[2]=$hash{$t[2]}; print join("\t",@t)."\n"' > tair.gaf.GoTerms
+
+==== IPR part, STOPPED BECAUSE OF MORE THAN 100 MISSING RECORDS
+
+(generate transcript-wise IPR descriptions)
+wdlin@HPC3:/RAID3/Projects/20230223_Araport11GO$ cat /RAID3/Projects/20230111_Wu/baseList.txt | perl -ne 'next if $.==1; chomp; @t=split(/\t/); $t[2].=";"; $t[2]=~s/:\d+-\d+;/;/g; print "$t[0]\t$t[2]\n"' > araport11.trans.InterPro
+
+wdlin@HPC3:/RAID3/Projects/20230223_Araport11GO$ cat araport11.trans.InterPro | perl -ne 'if($.==1){ open(FILE,"<Araport11.rnaGene"); while($line=<FILE>){ chomp $line; @s=split(/\t/,$line); $hash{$s[0]}=$s[1]; } close FILE; } @t=split(/\t/); @s=split(/;/,$t[1]); if(exists $hash{$t[0]}){ for $x (@s){ $ipr{$hash{$t[0]}}{$x}=1 } }else{ print "$t[0]\n" }' | perl -ne 'chomp; /(.+?)\./; print "$1\n"' > missing.txt
+
+(transwise InterPro description)
+wdlin@HPC3:/RAID3/Projects/20200907_RiceDict$ cat transwise/InterPro | perl -ne 'if($.==1){ open(FILE,"</nas/Projects/DataSource/InterPro/20210827/iprDescription.txt"); while($line=<FILE>){ chomp $line; @s=split(/\t/,$line); $term{$s[0]}=$s[1] } close FILE; print "#geneID\tInterPro_Description\n" } chomp; @t=split(/\t/); @s=split(/; /,$t[1]); print "$t[0]\t"; $first=1; for $x (@s){ if(exists $term{$x}){ print "; " if not $first; $first=0; print "$term{$x}" } } print "\n"' > transwise/InterPro_Description
